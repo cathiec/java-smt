@@ -25,7 +25,6 @@ import com.google.common.collect.Iterables;
 import de.uni_freiburg.informatik.ultimate.logic.Annotation;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -192,10 +191,5 @@ class SmtInterpolInterpolatingProver extends SmtInterpolBasicProver<String, Stri
     assertedFormulas.clear();
     annotatedTerms.clear();
     super.close();
-  }
-
-  @Override
-  protected Collection<Term> getAssertedTerms() {
-    return annotatedTerms.values();
   }
 }

@@ -26,7 +26,6 @@ import de.uni_freiburg.informatik.ultimate.logic.Annotation;
 import de.uni_freiburg.informatik.ultimate.logic.FunctionSymbol;
 import de.uni_freiburg.informatik.ultimate.logic.Sort;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -123,12 +122,5 @@ class SmtInterpolTheoremProver extends SmtInterpolBasicProver<Void, Term>
       callback.apply(Collections3.transformedImmutableListCopy(model, creator::encapsulateBoolean));
     }
     return callback.getResult();
-  }
-
-  @Override
-  protected Collection<Term> getAssertedTerms() {
-    List<Term> result = new ArrayList<>();
-    assertedFormulas.forEach(result::addAll);
-    return result;
   }
 }

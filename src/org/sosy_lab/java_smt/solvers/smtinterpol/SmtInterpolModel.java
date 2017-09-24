@@ -49,17 +49,12 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
   private static final String FRESH_VAR = "@__javasmt_internal_param_for_UF__@";
 
   private final Model model;
-  private final ImmutableList<Term> assertedTerms;
   private final SmtInterpolFormulaCreator formulaCreator;
 
-  SmtInterpolModel(
-      Model pModel,
-      FormulaCreator<Term, Sort, SmtInterpolEnvironment, ?> pCreator,
-      Collection<Term> assertedTerms) {
+  SmtInterpolModel(Model pModel, FormulaCreator<Term, Sort, SmtInterpolEnvironment, ?> pCreator) {
     super(pCreator);
     formulaCreator = (SmtInterpolFormulaCreator) pCreator;
     model = pModel;
-    this.assertedTerms = ImmutableList.copyOf(assertedTerms);
   }
 
   @Nullable

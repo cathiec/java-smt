@@ -80,7 +80,7 @@ abstract class SmtInterpolBasicProver<T, AF> implements BasicProverEnvironment<T
   @Override
   public SmtInterpolModel getModel() {
     Preconditions.checkState(!closed);
-    return new SmtInterpolModel(env.getModel(), creator, getAssertedTerms());
+    return new SmtInterpolModel(env.getModel(), creator);
   }
 
   @Override
@@ -93,8 +93,6 @@ abstract class SmtInterpolBasicProver<T, AF> implements BasicProverEnvironment<T
   protected static String generateTermName() {
     return PREFIX + termIdGenerator.getFreshId();
   }
-
-  protected abstract Collection<Term> getAssertedTerms();
 
   @Override
   public void close() {
