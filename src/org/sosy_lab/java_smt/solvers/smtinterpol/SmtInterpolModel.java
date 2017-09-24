@@ -30,18 +30,23 @@ import de.uni_freiburg.informatik.ultimate.logic.Model;
 import de.uni_freiburg.informatik.ultimate.logic.Rational;
 import de.uni_freiburg.informatik.ultimate.logic.Sort;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
+import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
 import javax.annotation.Nullable;
-import org.sosy_lab.java_smt.api.Formula;
 import org.sosy_lab.java_smt.api.FormulaType;
 import org.sosy_lab.java_smt.basicimpl.AbstractModel.CachingAbstractModel;
 import org.sosy_lab.java_smt.basicimpl.FormulaCreator;
 
 class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvironment> {
+
+  /**
+   * Iteration over UF-model needs variables for parameters. These variables will never be used
+   * anywhere else. Let's hope to never get a colliding symbol from a user :-)
+   */
+  private static final String FRESH_VAR = "@__javasmt_internal_param_for_UF__@";
 
   private final Model model;
   private final ImmutableList<Term> assertedTerms;
@@ -66,22 +71,85 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
 
   @Override
   protected ImmutableList<ValueAssignment> modelToList() {
-
     Builder<ValueAssignment> assignments = ImmutableSet.builder();
 
-    for (Term t : assertedTerms) {
-      for (Entry<String, Term> entry : creator.extractVariablesAndUFs(t, true).entrySet()) {
-        if (entry.getValue().getSort().isArraySort()) {
-          assignments.addAll(
-              getArrayAssignment(
-                  entry.getKey(), entry.getValue(), entry.getValue(), Collections.emptyList()));
+    for (FunctionSymbol symbol : model.getDefinedFunctions()) {
+      final String name = symbol.getApplicationString();
+      if (symbol.getParameterSorts().length == 0) { // simple variable or array
+        Term variable = creator.getEnv().term(name);
+        if (symbol.getReturnSort().isArraySort()) {
+          assignments.addAll(getArrayAssignment(name, variable, variable, Collections.emptyList()));
         } else {
-          assignments.add(getAssignment(entry.getKey(), (ApplicationTerm) entry.getValue()));
+          assignments.add(
+              new ValueAssignment(
+                  creator.encapsulateWithTypeOf(variable),
+                  name,
+                  getValue(model.getFunctionDefinition(name, new TermVariable[] {})),
+                  Collections.emptySet()));
         }
+      } else { // uninterpreted function
+        assignments.addAll(getUFAssignment(symbol));
       }
     }
 
     return assignments.build().asList();
+  }
+
+  private Collection<ValueAssignment> getUFAssignment(FunctionSymbol symbol) {
+    final Collection<ValueAssignment> assignments = new ArrayList<>();
+    final String name = symbol.getApplicationString();
+
+    // use fresh variables as utility parameters
+    TermVariable[] args = new TermVariable[symbol.getParameterSorts().length];
+    for (int i = 0; i < args.length; i++) {
+      args[i] = creator.getEnv().variable(FRESH_VAR + i, symbol.getParameterSorts()[i]);
+    }
+
+    // get ITE-structure and split it into its values
+    Term value = model.getFunctionDefinition(name, args);
+    while (value instanceof ApplicationTerm) {
+      ApplicationTerm app = (ApplicationTerm) value;
+      if ("ite".equals(app.getFunction().getApplicationString())) {
+        Term cond = app.getParameters()[0];
+        Term ifCase = app.getParameters()[1];
+        Term thenCase = app.getParameters()[2];
+        assignments.add(getAssignment(name, args, cond, ifCase));
+
+        value = thenCase; // recursive unrolling of the ITE-structure
+      }
+    }
+
+    return assignments;
+  }
+
+  private ValueAssignment getAssignment(String name, TermVariable[] args, Term cond, Term ifCase) {
+    Term[] arguments = new Term[args.length];
+    // we expect one part for each parameter: "and (= @p0 123) (= @p1 123) (= @p2 123)"
+    for (Term part : splitConjunction((ApplicationTerm) cond)) {
+      // each part looks like "= @p0 123"
+      Term[] params = ((ApplicationTerm) part).getParameters();
+      int index = Integer.valueOf(params[0].toString().substring(FRESH_VAR.length()));
+      arguments[index] = params[1];
+    }
+
+    List<Object> argumentInterpretation = new ArrayList<>();
+    for (Term param : arguments) {
+      argumentInterpretation.add(getValue(param));
+    }
+
+    return new ValueAssignment(
+        creator.encapsulateWithTypeOf(creator.getEnv().term(name, arguments)),
+        name,
+        getValue(ifCase),
+        argumentInterpretation);
+  }
+
+  private Collection<Term> splitConjunction(ApplicationTerm cond) {
+    if ("and".equals(cond.getFunction().getApplicationString())) {
+      return Lists.newArrayList(cond.getParameters());
+    } else {
+      return Collections.singleton(cond);
+    }
   }
 
   private Collection<ValueAssignment> getArrayAssignment(
@@ -122,18 +190,6 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
     }
 
     return assignments;
-  }
-
-  private ValueAssignment getAssignment(String key, ApplicationTerm term) {
-    Formula fKey = creator.encapsulateWithTypeOf(term);
-    Object fValue = evaluateImpl(term);
-    List<Object> argumentInterpretation = new ArrayList<>();
-
-    for (Term param : term.getParameters()) {
-      argumentInterpretation.add(evaluateImpl(param));
-    }
-
-    return new ValueAssignment(fKey, key, fValue, argumentInterpretation);
   }
 
   @Override
