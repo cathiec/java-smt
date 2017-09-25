@@ -83,14 +83,15 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
                   Collections.emptySet()));
         }
       } else { // uninterpreted function
-        assignments.addAll(getUFAssignment(symbol));
+        assignments.addAll(getUFAssignments(symbol));
       }
     }
 
     return assignments.build().asList();
   }
 
-  private Collection<ValueAssignment> getUFAssignment(FunctionSymbol symbol) {
+  /** Get all modeled assignments for the UF. */
+  private Collection<ValueAssignment> getUFAssignments(FunctionSymbol symbol) {
     final Collection<ValueAssignment> assignments = new ArrayList<>();
     final String name = symbol.getApplicationString();
 
@@ -108,21 +109,25 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
         Term cond = app.getParameters()[0];
         Term ifCase = app.getParameters()[1];
         Term thenCase = app.getParameters()[2];
-        assignments.add(getAssignment(name, args, cond, ifCase));
-
+        assignments.add(getUFAssignment(name, args, cond, ifCase));
         value = thenCase; // recursive unrolling of the ITE-structure
+      } else {
+        throw new AssertionError("numeral term expected. unexpected application term: " + value);
       }
     }
 
     return assignments;
   }
 
-  private ValueAssignment getAssignment(String name, TermVariable[] args, Term cond, Term ifCase) {
+  /** Get an evaluation for a single assignment of an UF. */
+  private ValueAssignment getUFAssignment(
+      String name, TermVariable[] args, Term cond, Term ifCase) {
     Term[] arguments = new Term[args.length];
     // we expect one part for each parameter: "and (= @p0 123) (= @p1 123) (= @p2 123)"
     for (Term part : splitConjunction((ApplicationTerm) cond)) {
       // each part looks like "= @p0 123"
       Term[] params = ((ApplicationTerm) part).getParameters();
+      // we have to extract the index here, because sorting of AND is undefined.
       int index = Integer.parseInt(params[0].toString().substring(FRESH_VAR.length()));
       arguments[index] = params[1];
     }
@@ -139,6 +144,10 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
         argumentInterpretation);
   }
 
+  /**
+   * Split a conjunctive form into its parts. This method is strongly depending on SMTInterpol
+   * internals.
+   */
   private Collection<Term> splitConjunction(ApplicationTerm cond) {
     if ("and".equals(cond.getFunction().getApplicationString())) {
       return Lists.newArrayList(cond.getParameters());
@@ -147,6 +156,14 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
     }
   }
 
+  /**
+   * Get all modeled assignments for the given array.
+   *
+   * @param symbol name of the array
+   * @param key term of the whole array, such that a select operation returns the evaluation,
+   * @param array term of the array, such that an evaluation returns its whole content
+   * @param upperIndices indices for multi-dimensional arrays
+   */
   private Collection<ValueAssignment> getArrayAssignment(
       String symbol, Term key, Term array, List<Object> upperIndices) {
     assert array.getSort().isArraySort();
