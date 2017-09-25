@@ -123,7 +123,7 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
     for (Term part : splitConjunction((ApplicationTerm) cond)) {
       // each part looks like "= @p0 123"
       Term[] params = ((ApplicationTerm) part).getParameters();
-      int index = Integer.valueOf(params[0].toString().substring(FRESH_VAR.length()));
+      int index = Integer.parseInt(params[0].toString().substring(FRESH_VAR.length()));
       arguments[index] = params[1];
     }
 
