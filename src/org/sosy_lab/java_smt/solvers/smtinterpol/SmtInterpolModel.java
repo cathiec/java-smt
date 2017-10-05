@@ -31,10 +31,12 @@ import de.uni_freiburg.informatik.ultimate.logic.Rational;
 import de.uni_freiburg.informatik.ultimate.logic.Sort;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
 import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
+import de.uni_freiburg.informatik.ultimate.smtinterpol.model.FunctionValue.Index;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map.Entry;
 import javax.annotation.Nullable;
 import org.sosy_lab.java_smt.api.FormulaType;
 import org.sosy_lab.java_smt.basicimpl.AbstractModel.CachingAbstractModel;
@@ -95,65 +97,33 @@ class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvir
     final Collection<ValueAssignment> assignments = new ArrayList<>();
     final String name = symbol.getApplicationString();
 
-    // use fresh variables as utility parameters
-    TermVariable[] args = new TermVariable[symbol.getParameterSorts().length];
-    for (int i = 0; i < args.length; i++) {
-      args[i] = creator.getEnv().variable(FRESH_VAR + i, symbol.getParameterSorts()[i]);
-    }
+    // direct interaction with internal classes and internal behaviour of SMTInterpol.
+    // they made some classes 'public' especially for us,
+    // because there is no nicer way of iterating over UF-assignments,
+    // except building a ITE-formula in SMTInterpol and splitting it here (previous solution).
 
-    // get ITE-structure and split it into its values
-    Term value = model.getFunctionDefinition(name, args);
-    while (value instanceof ApplicationTerm) {
-      ApplicationTerm app = (ApplicationTerm) value;
-      if ("ite".equals(app.getFunction().getApplicationString())) {
-        Term cond = app.getParameters()[0];
-        Term ifCase = app.getParameters()[1];
-        Term thenCase = app.getParameters()[2];
-        assignments.add(getUFAssignment(name, args, cond, ifCase));
-        value = thenCase; // recursive unrolling of the ITE-structure
-      } else {
-        throw new AssertionError("numeral term expected. unexpected application term: " + value);
+    de.uni_freiburg.informatik.ultimate.smtinterpol.model.Model mmodel =
+        (de.uni_freiburg.informatik.ultimate.smtinterpol.model.Model) model;
+
+    for (Entry<Index, Integer> v : mmodel.getFunctionValue(symbol).values().entrySet()) {
+      int[] indizes = v.getKey().getArray();
+      List<Object> argumentInterpretation = new ArrayList<>();
+      Term[] arguments = new Term[indizes.length];
+      for (int i = 0; i < indizes.length; i++) {
+        Term t = mmodel.toModelTerm(indizes[i], symbol.getParameterSorts()[i]);
+        arguments[i] = t;
+        argumentInterpretation.add(getValue(t));
       }
+
+      assignments.add(
+          new ValueAssignment(
+              creator.encapsulateWithTypeOf(creator.getEnv().term(name, arguments)),
+              name,
+              getValue(mmodel.toModelTerm(v.getValue(), symbol.getReturnSort())),
+              argumentInterpretation));
     }
 
     return assignments;
-  }
-
-  /** Get an evaluation for a single assignment of an UF. */
-  private ValueAssignment getUFAssignment(
-      String name, TermVariable[] args, Term cond, Term ifCase) {
-    Term[] arguments = new Term[args.length];
-    // we expect one part for each parameter: "and (= @p0 123) (= @p1 123) (= @p2 123)"
-    for (Term part : splitConjunction((ApplicationTerm) cond)) {
-      // each part looks like "= @p0 123"
-      Term[] params = ((ApplicationTerm) part).getParameters();
-      // we have to extract the index here, because sorting of AND is undefined.
-      int index = Integer.parseInt(params[0].toString().substring(FRESH_VAR.length()));
-      arguments[index] = params[1];
-    }
-
-    List<Object> argumentInterpretation = new ArrayList<>();
-    for (Term param : arguments) {
-      argumentInterpretation.add(getValue(param));
-    }
-
-    return new ValueAssignment(
-        creator.encapsulateWithTypeOf(creator.getEnv().term(name, arguments)),
-        name,
-        getValue(ifCase),
-        argumentInterpretation);
-  }
-
-  /**
-   * Split a conjunctive form into its parts. This method is strongly depending on SMTInterpol
-   * internals.
-   */
-  private Collection<Term> splitConjunction(ApplicationTerm cond) {
-    if ("and".equals(cond.getFunction().getApplicationString())) {
-      return Lists.newArrayList(cond.getParameters());
-    } else {
-      return Collections.singleton(cond);
-    }
   }
 
   /**
