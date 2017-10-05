@@ -44,12 +44,6 @@ import org.sosy_lab.java_smt.basicimpl.FormulaCreator;
 
 class SmtInterpolModel extends CachingAbstractModel<Term, Sort, SmtInterpolEnvironment> {
 
-  /**
-   * Iteration over UF-model needs variables for parameters. These variables will never be used
-   * anywhere else. Let's hope to never get a colliding symbol from a user :-)
-   */
-  private static final String FRESH_VAR = "@__javasmt_internal_param_for_UF__@";
-
   private final Model model;
   private final SmtInterpolFormulaCreator formulaCreator;
 
