@@ -1,0 +1,65 @@
+
+# Default rounding mode for floating point operations.
+solver.floatingPointRoundingMode = NEAREST_TIES_TO_EVEN
+  enum:     [NEAREST_TIES_TO_EVEN, NEAREST_TIES_AWAY, TOWARD_POSITIVE, TOWARD_NEGATIVE,
+             TOWARD_ZERO]
+
+# Export solver queries in SmtLib format into a file.
+solver.logAllQueries = false
+solver.logfile = no default value
+
+# Further options that will be passed to Mathsat in addition to the default
+# options. Format is 'key1=value1,key2=value2'
+solver.mathsat5.furtherOptions = ""
+
+# Load less stable optimizing version of mathsat5 solver.
+solver.mathsat5.loadOptimathsat5 = false
+
+# log all queries as Princess-specific Scala code
+solver.princess.logAllQueriesAsScala = false
+
+# file for Princess-specific dump of queries as Scala code
+solver.princess.logAllQueriesAsScalaFile = "princess-query-%03d-"
+
+# The number of atoms a term has to have before it gets abbreviated if there
+# are more identical terms.
+solver.princess.minAtomsForAbbreviation = 100
+
+# Random seed for SMT solver.
+solver.randomSeed = 42
+
+# Double check generated results like interpolants and models whether they
+# are correct
+solver.smtinterpol.checkResults = false
+
+# Further options that will be set to true for SMTInterpol in addition to the
+# default options. Format is 'option1,option2,option3'
+solver.smtinterpol.furtherOptions = []
+
+# Which SMT solver to use.
+solver.solver = SMTINTERPOL
+  enum:     [MATHSAT5, SMTINTERPOL, Z3, PRINCESS]
+
+# Log solver actions, this may be slow!
+solver.useLogger = false
+
+# Dump failed interpolation queries to this file in SMTLIB2 format
+solver.z3.dumpFailedInterpolationQueries = no default value
+
+# Activate replayable logging in Z3. The log can be given as an input to the
+# solver and replayed.
+solver.z3.log = no default value
+
+# Ordering for objectives in the optimization context
+solver.z3.objectivePrioritizationMode = "box"
+  allowed values: [lex, pareto, box]
+
+# Engine to use for the optimization
+solver.z3.optimizationEngine = "basic"
+  allowed values: [basic, farkas, symba]
+
+# Require proofs from SMT solver
+solver.z3.requireProofs = true
+
+# Whether to use PhantomReferences for discarding Z3 AST
+solver.z3.usePhantomReferences = false
